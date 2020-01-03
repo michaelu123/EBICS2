@@ -8,7 +8,6 @@ from xml.dom.minidom import *
 
 import gsheets
 
-inputFilesDefault = "Google Sheets: RFS_0AXX Backend"
 templateFileDefault = "Default"
 fieldnames = ["Vorname", "Name", "Lastschrift: Name des Kontoinhabers", "Lastschrift: IBAN-Kontonummer", "Betrag",
               "Zweck", "Sheet"]  # adapt to field names in csv file
@@ -19,6 +18,12 @@ ktoinh = fieldnames[2]
 iban = fieldnames[3]
 betrag = fieldnames[4]
 zweck = fieldnames[5]
+zusatzFelder = ["Verifikation", "Bestätigung", "Eingezogen", "Zahlungseingang", "Kommentar"]
+
+verifikation = zusatzFelder[0]
+eingezogen = zusatzFelder[2]
+bezahlt = zusatzFelder[3]
+zustimmung = "Zustimmung zur SEPA-Lastschrift"
 
 decCtx = getcontext()
 decCtx.prec = 7  # 5.2 digits, max=99999.99
@@ -111,25 +116,6 @@ xmls = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </Document>
 """
 
-class Excel1(csv.Dialect):
-    """Describe the usual properties of Excel-generated CSV files."""
-    delimiter = ','
-    quotechar = '"'
-    doublequote = True
-    skipinitialspace = False
-    lineterminator = '\n'
-    quoting = csv.QUOTE_MINIMAL
-
-class Excel2(csv.Dialect):
-    """Describe the usual properties of Excel-generated CSV files."""
-    delimiter = ';'
-    quotechar = '"'
-    doublequote = True
-    skipinitialspace = False
-    lineterminator = '\n'
-    quoting = csv.QUOTE_MINIMAL
-
-
 def addBetraege(entries):
     sum = Decimal("0.00")
     for row in entries:
@@ -142,31 +128,44 @@ def randomId(length):
     return r1 + ''.join(r2)
 
 class Ebics:
-    def __init__(self, inputfilesA, outputfileA, stdbetragA, sepA, stdzweckA, mandatA, ebicsA):
-        self.inputFiles = inputfilesA
+    def __init__(self, outputfileA, stdbetragA, stdzweckA, mandatA, ebicsA):
         self.outputFile = outputfileA
         self.stdbetrag = stdbetragA
-        self.sep = sepA
         self.stdzweck = stdzweckA
         self.mandat = mandatA
         self.ebics = ebicsA
         self.nr_einzug = 0
+        self.unverifiziert = 0
         self.nr_bezahlt = 0
-        self.nr_enthalten = 0
+        self.nr_einzuziehen = 0
+        self.nr_eingezogen = 0
+        self.emailAdresses = {}
+        self.eingez = []
 
     def getStatistics(self):
-        return ( self.nr_einzug, self.nr_bezahlt, self.nr_enthalten)
+        return ( self.nr_einzug, self.unverifiziert, self.nr_bezahlt, self.nr_eingezogen, self.nr_einzuziehen)
 
     def checkRow(self, row):
-        if not iban in row:
+        # IBAN angegeben?
+        if not iban in row.keys() or row[iban] == "" or len(row[iban]) < 22:
             return False
-        if row[iban] == "" or len(row[iban]) < 22:
+        # Zustimmung erteilt?
+        if not zustimmung in row.keys() or row[zustimmung] == "":
             return False
         self.nr_einzug += 1
-        if "bezahlt" in list(row.values()):
+        # Email verifiziert?
+        if not zustimmung in row.keys() or row[verifikation] == "":
+            self.nr_unverifiziert += 1
+            return False
+        # Schon Zahlungseingang
+        if bezahlt in row and row[bezahlt] != "":
             self.nr_bezahlt += 1
             return False
-        self.nr_enthalten += 1
+        # Schon eingezogen?
+        if eingezogen in row and row[eingezogen] != "":
+            self.nr_eingezogen += 1
+            return False
+        self.nr_einzuziehen += 1
         if not betrag in row:
             if self.stdbetrag == "":
                 raise ValueError("Standard-Betrag nicht definiert (mit -b)")
@@ -181,34 +180,26 @@ class Ebics:
             row[zweck] = self.stdzweck
         return True
 
-    def parseCSV(self, inputPath):
-        vals = []
-        csv.register_dialect("excel1", Excel1)
-        csv.register_dialect("excel2", Excel2)
-        with open(inputPath, 'r', newline='', encoding="utf-8") as csvfile:
-            reader = csv.DictReader(csvfile, None, dialect="excel1" if self.sep == ',' else "excel2")
-            for row in reader:
-                row["Sheet"] = inputPath
-                if self.checkRow(row):
-                    vals.append({x:row[x] for x in fieldnames})
-        return vals
-
     def parseGS(self, data):
         vals = []
         for sheet in data.keys():
             srows = data[sheet]
-            srow0 = srows[0]
-            for srow in srows[1:]:
+            headers = srows[0]
+            eingezogenX = headers.index(eingezogen)
+            for r, srow in enumerate(srows[1:]):
                 row = {}
-                for i,v in enumerate(srow):
-                    if i < len(srow0) and srow0[i] != "":
-                        key = srow0[i]
+                for c,v in enumerate(srow):
+                    if c < len(headers) and headers[c] != "":
+                        key = headers[c]
                     else:
-                        key = chr(ord('A') + i)
+                        key = headers[c] = chr(ord('A') + c)
                     row[key] = v
                 row["Sheet"] = sheet
                 if self.checkRow(row):
+                    # Hier können wir einziehen!
                     vals.append({x:row[x] for x in fieldnames})
+                    # Merken wo das Eingezogen-Datum gespeichert wird, nachdem ebics.xml geschrieben wurde
+                    self.eingez.append((sheet, r + 1, eingezogenX))
         return vals
 
     def fillinIDs(self):
@@ -261,13 +252,54 @@ class Ebics:
         d = day2.isoformat()
         reqdColltnDt[0].childNodes[0] = self.xmlt.createTextNode(d)
 
+    def parseEmailVerif(self, data:dict):
+        emailVerifSheet = data.pop("Email-Verifikation", None)
+        if emailVerifSheet is None:
+            return
+        headers = emailVerifSheet[0]
+        if headers[0] != "Zeitstempel" or \
+                headers[1] != "Haben Sie sich gerade für einen Radfahrkurs angemeldet?" or \
+                headers[2] != "Mit dieser Email-Adresse (bitte nicht ändern!) :":
+            print("Arbeitsblatt Email-Verifikation hat falsche Header-Zeile", headers)
+        for row in emailVerifSheet[1:]:
+            if row[1] == "Ja":
+                self.emailAdresses[row[2]] = row[0]
+
+    def checkColumns(self, data:dict):
+        # Prüfen ob im sheet die Zusatzfelder angelegt sind
+        for sheet in data.keys():
+            srows = data[sheet]
+            headers = srows[0] # ein Pointer nach data, keine Kopie!
+            for h in zusatzFelder:
+                if not h in headers:
+                    self.gsheet.addColumn(sheet, h)
+                    headers.append(h)
+
+    def checkEmailVerif(self, data:dict):
+        # Prüfen ob die Email-Adresse im sheet Email-Verifikation vorkommt
+        for sheet in data.keys():
+            srows = data[sheet]
+            headers = srows[0]
+            verifx = headers.index(verifikation)
+            emailx = headers.index("E-Mail-Adresse")
+            for i, row in enumerate(srows[1:]):
+                emailaddr = row[emailx]
+                verifyDate = self.emailAdresses.get(emailaddr)
+                if verifyDate is not None:
+                    while len(row) <= verifx:
+                        row.append("")
+                    if row[verifx] == "":
+                        # Datum von Email-Verifikation in Spalte Verifikation übernehmen
+                        self.gsheet.addValue(sheet, i + 1, verifx, verifyDate)
+                        row[verifx] = verifyDate
+
     def createEbicsXml(self):
-        if self.inputFiles == inputFilesDefault:
-            entries = self.parseGS(gsheets.getData())
-        else:
-            entries = []
-            for inp in self.inputFiles.split(','):
-                entries.extend(self.parseCSV(inp))
+        self.gsheet = gsheets.GSheet()
+        data = self.gsheet.getData()
+        self.parseEmailVerif(data)
+        self.checkColumns(data)
+        self.checkEmailVerif(data)
+        entries = self.parseGS(data)
         if len(entries) == 0:
             return None
         summe = addBetraege(entries)
@@ -285,4 +317,11 @@ class Ebics:
         pr = pr[0:36] + b' standalone="yes"' + pr[36:]  # minidom has problems with standalone param
         with open(self.outputFile, "wb") as o:
             o.write(pr)
+
+        # Spalte "Eingezogen" auf heutiges Datum setzen
+        now = datetime.datetime.now()
+        d = now.strftime("%Y-%m-%d")
+        for t in self.eingez:
+            self.gsheet.addValue(t[0], t[1], t[2], d)
+
         return pr
