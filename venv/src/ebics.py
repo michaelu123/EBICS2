@@ -1,32 +1,22 @@
 import copy
 import csv
 import datetime
+import os
 import random
+import string
 from decimal import Decimal, getcontext
 from string import digits, ascii_uppercase
 from xml.dom.minidom import *
 
 import gsheets
+import gsheetsRFSA
+import gsheetsRFSF
+import gsheetsSaisonKarte
 
 templateFileDefault = "Default"
-fieldnames = ["Vorname", "Name", "Lastschrift: Name des Kontoinhabers", "Lastschrift: IBAN-Kontonummer", "Betrag",
-              "Zweck", "Sheet"]  # adapt to field names in csv file
-charset = digits + ascii_uppercase
-vorname = fieldnames[0]
-name = fieldnames[1]
-ktoinh = fieldnames[2]
-iban = fieldnames[3]
-betrag = fieldnames[4]
-zweck = fieldnames[5]
-zusatzFelder = ["Verifikation", "Bestätigung", "Eingezogen", "Zahlungseingang", "Kommentar"]
-
-verifikation = zusatzFelder[0]
-eingezogen = zusatzFelder[2]
-bezahlt = zusatzFelder[3]
-zustimmung = "Zustimmung zur SEPA-Lastschrift"
-
 decCtx = getcontext()
 decCtx.prec = 7  # 5.2 digits, max=99999.99
+charset = digits + ascii_uppercase
 
 xmls = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.001.02" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:iso:std:iso:20022:tech:xsd:pain.008.001.02 pain.008.001.02.xsd">
@@ -116,91 +106,26 @@ xmls = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </Document>
 """
 
-def addBetraege(entries):
-    sum = Decimal("0.00")
-    for row in entries:
-        sum = sum + row[betrag]
-    return sum
-
 def randomId(length):
     r1 = random.choice(ascii_uppercase)  # first a letter
     r2 = [random.choice(charset) for _ in range(length - 1)]  # then any mixture of capitalletters and numbers
     return r1 + ''.join(r2)
 
+
+klasses = {"RFSA": gsheetsRFSA.GSheetRFSA, "RFSF": gsheetsRFSF.GSheetRFSF, "SK": gsheetsSaisonKarte.GSheetSK}
+def getKlasses():
+    return klasses
+
 class Ebics:
-    def __init__(self, outputfileA, stdbetragA, stdzweckA, mandatA, ebicsA):
-        self.outputFile = outputfileA
-        self.stdbetrag = stdbetragA
-        self.stdzweck = stdzweckA
-        self.mandat = mandatA
-        self.ebics = ebicsA
-        self.nr_einzug = 0
-        self.unverifiziert = 0
-        self.nr_bezahlt = 0
-        self.nr_einzuziehen = 0
-        self.nr_eingezogen = 0
-        self.emailAdresses = {}
-        self.eingez = []
-
-    def getStatistics(self):
-        return ( self.nr_einzug, self.unverifiziert, self.nr_bezahlt, self.nr_eingezogen, self.nr_einzuziehen)
-
-    def checkRow(self, row):
-        # IBAN angegeben?
-        if not iban in row.keys() or row[iban] == "" or len(row[iban]) < 22:
-            return False
-        # Zustimmung erteilt?
-        if not zustimmung in row.keys() or row[zustimmung] == "":
-            return False
-        self.nr_einzug += 1
-        # Email verifiziert?
-        if not zustimmung in row.keys() or row[verifikation] == "":
-            self.nr_unverifiziert += 1
-            return False
-        # Schon Zahlungseingang
-        if bezahlt in row and row[bezahlt] != "":
-            self.nr_bezahlt += 1
-            return False
-        # Schon eingezogen?
-        if eingezogen in row and row[eingezogen] != "":
-            self.nr_eingezogen += 1
-            return False
-        self.nr_einzuziehen += 1
-        if not betrag in row:
-            if self.stdbetrag == "":
-                raise ValueError("Standard-Betrag nicht definiert (mit -b)")
-            row[betrag] = self.stdbetrag
-        row[betrag] = Decimal(row[betrag].replace(',', '.'))  # 3,14 -> 3.14
-        inh = row[ktoinh]
-        if len(inh) < 5 or inh.startswith("dto") or inh.startswith("ditto"):
-            row[ktoinh] = row[vorname] + " " + row[name]
-        if not zweck in row:
-            if self.stdzweck == "":
-                raise ValueError("Standard-Verwendungszweck nicht definiert (mit -z)")
-            row[zweck] = self.stdzweck
-        return True
-
-    def parseGS(self, data):
-        vals = []
-        for sheet in data.keys():
-            srows = data[sheet]
-            headers = srows[0]
-            eingezogenX = headers.index(eingezogen)
-            for r, srow in enumerate(srows[1:]):
-                row = {}
-                for c,v in enumerate(srow):
-                    if c < len(headers) and headers[c] != "":
-                        key = headers[c]
-                    else:
-                        key = headers[c] = chr(ord('A') + c)
-                    row[key] = v
-                row["Sheet"] = sheet
-                if self.checkRow(row):
-                    # Hier können wir einziehen!
-                    vals.append({x:row[x] for x in fieldnames})
-                    # Merken wo das Eingezogen-Datum gespeichert wird, nachdem ebics.xml geschrieben wurde
-                    self.eingez.append((sheet, r + 1, eingezogenX))
-        return vals
+    def __init__(self, sels, outputfile, stdbetrag, stdzweck, mandat, ebics):
+        self.sels = sels
+        self.outputFile = outputfile
+        self.stdbetrag = stdbetrag
+        self.stdzweck = stdzweck
+        self.mandat = mandat
+        self.ebics = ebics
+        self.gsheets = []
+        self.xmlt = None
 
     def fillinIDs(self):
         msgid = self.xmlt.getElementsByTagName("MsgId")
@@ -218,7 +143,7 @@ class Ebics:
         for nr in nbOfTxs:
             nr.childNodes[0] = self.xmlt.createTextNode(str(cnt))
 
-    def fillin(self, entries):
+    def fillin1(self):
         pmtInf = self.xmlt.getElementsByTagName("PmtInf")[0]
         drctDbtTxInf = pmtInf.getElementsByTagName("DrctDbtTxInf")[0]
         x = pmtInf.childNodes.index(drctDbtTxInf)
@@ -226,20 +151,27 @@ class Ebics:
         nl1 = pmtInf.childNodes[x - 1]
         nl2 = pmtInf.childNodes[x + 1]
         pmtInf.childNodes = pmtInf.childNodes[0:x]
+        return (pmtInf, drctDbtTxInf, nl1, nl2)
+
+    def fillin2(self, tuple, entries):
+        pmtInf, drctDbtTxInf, nl1, nl2 = tuple
         for entry in entries:
             newtx = copy.deepcopy(drctDbtTxInf)
             nm = newtx.getElementsByTagName("Nm")
-            nm[0].childNodes[0] = self.xmlt.createTextNode(entry[ktoinh])
+            nm[0].childNodes[0] = self.xmlt.createTextNode(entry[self.gsheet.ktoinh])
             ibn = newtx.getElementsByTagName("IBAN")
-            ibn[0].childNodes[0] = self.xmlt.createTextNode(entry[iban])
+            ibn[0].childNodes[0] = self.xmlt.createTextNode(entry[self.gsheet.iban])
             amt = newtx.getElementsByTagName("InstdAmt")
-            amt[0].childNodes[0] = self.xmlt.createTextNode(str(entry[betrag]))
+            amt[0].childNodes[0] = self.xmlt.createTextNode(str(entry[self.gsheet.betrag]))
             ustrd = newtx.getElementsByTagName("Ustrd")
-            ustrd[0].childNodes[0] = self.xmlt.createTextNode(str(entry[zweck]))
-            pmtInf.childNodes.append(newtx)
-            pmtInf.childNodes.append(copy.copy(nl1))
+            ustrd[0].childNodes[0] = self.xmlt.createTextNode(str(entry[self.gsheet.zweck]))
             mndtId = newtx.getElementsByTagName("MndtId")
             mndtId[0].childNodes[0] = self.xmlt.createTextNode(self.mandat)
+            pmtInf.childNodes.append(newtx)
+            pmtInf.childNodes.append(copy.copy(nl1))
+
+    def fillin3(self, tuple):
+        pmtInf, drctDbtTxInf, nl1, nl2 = tuple
         pmtInf.childNodes[len(pmtInf.childNodes) - 1] = copy.copy(nl2)
 
     def fillinDates(self):
@@ -252,66 +184,61 @@ class Ebics:
         d = day2.isoformat()
         reqdColltnDt[0].childNodes[0] = self.xmlt.createTextNode(d)
 
-    def parseEmailVerif(self, data:dict):
-        emailVerifSheet = data.pop("Email-Verifikation", None)
-        if emailVerifSheet is None:
-            return
-        headers = emailVerifSheet[0]
-        if headers[0] != "Zeitstempel" or \
-                headers[1] != "Haben Sie sich gerade für einen Radfahrkurs angemeldet?" or \
-                headers[2] != "Mit dieser Email-Adresse (bitte nicht ändern!) :":
-            print("Arbeitsblatt Email-Verifikation hat falsche Header-Zeile", headers)
-        for row in emailVerifSheet[1:]:
-            if row[1] == "Ja":
-                self.emailAdresses[row[2]] = row[0]
 
-    def checkColumns(self, data:dict):
-        # Prüfen ob im sheet die Zusatzfelder angelegt sind
-        for sheet in data.keys():
-            srows = data[sheet]
-            headers = srows[0] # ein Pointer nach data, keine Kopie!
-            for h in zusatzFelder:
-                if not h in headers:
-                    self.gsheet.addColumn(sheet, h)
-                    headers.append(h)
+    def check(self):
+        for i, sel in enumerate(self.sels.keys()):
+            if self.sels[sel] == 0:
+                continue
+            klass = klasses[sel]
+            defaults = klass.getDefaults()
+            stdBetrag = self.stdbetrag if self.stdbetrag != "" else defaults[0]
+            stdZweck = self.stdzweck if self.stdzweck != "" else defaults[1]
+            self.mandat = defaults[2]
+            self.gsheet = klass(stdBetrag, stdZweck)
+            self.gsheets.append(self.gsheet)
+            self.gsheet.getEntries()
 
-    def checkEmailVerif(self, data:dict):
-        # Prüfen ob die Email-Adresse im sheet Email-Verifikation vorkommt
-        for sheet in data.keys():
-            srows = data[sheet]
-            headers = srows[0]
-            verifx = headers.index(verifikation)
-            emailx = headers.index("E-Mail-Adresse")
-            for i, row in enumerate(srows[1:]):
-                emailaddr = row[emailx]
-                verifyDate = self.emailAdresses.get(emailaddr)
-                if verifyDate is not None:
-                    while len(row) <= verifx:
-                        row.append("")
-                    if row[verifx] == "":
-                        # Datum von Email-Verifikation in Spalte Verifikation übernehmen
-                        self.gsheet.addValue(sheet, i + 1, verifx, verifyDate)
-                        row[verifx] = verifyDate
+    def addBetraege(self, entries):
+        sum = Decimal("0.00")
+        for row in entries:
+            sum = sum + row[self.gsheet.betrag]
+        return sum
 
     def createEbicsXml(self):
-        self.gsheet = gsheets.GSheet()
-        data = self.gsheet.getData()
-        self.parseEmailVerif(data)
-        self.checkColumns(data)
-        self.checkEmailVerif(data)
-        entries = self.parseGS(data)
-        if len(entries) == 0:
-            return None
-        summe = addBetraege(entries)
         template = xmls
         if self.ebics != None and self.ebics != "" and self.ebics != templateFileDefault:
             with open(self.ebics, "r", encoding="utf-8") as f:
                 template = f.read()
+        if (os.path.exists(self.outputFile)):
+            raise Exception("Datei " + self.outputFile + " existiert schon")
         self.xmlt = parseString(template)
         self.fillinIDs()
         self.fillinDates()
-        self.fillinSumme(summe, len(entries))
-        self.fillin(entries)
+        tuple = self.fillin1()
+
+        summe = 0
+        entryCnt = 0
+        for i, sel in enumerate(self.sels.keys()):
+            if self.sels[sel] == 0:
+                continue
+            klass = klasses[sel]
+            defaults = klass.getDefaults()
+            stdBetrag = self.stdbetrag if self.stdbetrag != "" else defaults[0]
+            stdZweck = self.stdzweck if self.stdzweck != "" else defaults[1]
+            if self.mandat == "": # GUI may have overridden mandat, but only for one spreadsheet
+                self.mandat = defaults[2]
+            self.gsheet = klass(stdBetrag, stdZweck)
+            self.gsheets.append(self.gsheet)
+            entries = self.gsheet.getEntries()
+            self.fillin2(tuple, entries)
+            entryCnt += len(entries)
+            summe += self.addBetraege(entries)
+            self.mandat = ""
+        self.fillin3(tuple)
+
+        if entryCnt == 0:
+            return
+        self.fillinSumme(summe, entryCnt)
         # self.xmlt.standalone = True or "yes" has no effect
         pr = self.xmlt.toxml(encoding="utf-8")
         pr = pr[0:36] + b' standalone="yes"' + pr[36:]  # minidom has problems with standalone param
@@ -319,9 +246,16 @@ class Ebics:
             o.write(pr)
 
         # Spalte "Eingezogen" auf heutiges Datum setzen
-        now = datetime.datetime.now()
-        d = now.strftime("%Y-%m-%d")
-        for t in self.eingez:
-            self.gsheet.addValue(t[0], t[1], t[2], d)
+        for gsheet in self.gsheets:
+            gsheet.fillEingezogen()
 
-        return pr
+    def getStatistics(self):
+        nr_einzug = nr_unverifiziert = nr_bezahlt = nr_eingezogen = nr_einzuziehen = 0
+        for gsheet in self.gsheets:
+            st = gsheet.getStatistics()
+            nr_einzug += st[0]
+            nr_unverifiziert += st[1]
+            nr_bezahlt += st[2]
+            nr_eingezogen += st[3]
+            nr_einzuziehen += st[4]
+        return ( nr_einzug, nr_unverifiziert, nr_bezahlt, nr_eingezogen, nr_einzuziehen)

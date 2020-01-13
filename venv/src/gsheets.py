@@ -1,23 +1,68 @@
 from __future__ import print_function
+
+import datetime
 import os
 import pickle
+import string
+from decimal import Decimal
+
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient import errors
 from googleapiclient.discovery import build
 
 # If modifying these scopes, delete the file token.pickle.
-# SCOPES = ['https://www.googleapis.com/auth/script.projects']
-# SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-spreadSheetId = "1xRwSYtnmB4Y3_2f8ZPHxLuzMy7WuuZIW8jOY0nsIzN8" # RFS_0AXX Backend
-#spreadSheetId = "1yFZTL6BqbUXGBtcSoeXGCsO9mlcT3gxBBGt_v2NWprQ" # Test
-#spreadSheetId = "1vJWylr8CFs-sWflGHp6Opmd8FpME_xvbrbOm0PzucwE" # RFS_9Txx Backend
+def is_iban(unchecked_iban):  # https://gist.github.com/mperlet/f912b1e57d058bd1b07d78ed13de1f23
+    LETTERS = {ord(d): str(i) for i, d in enumerate(string.digits + string.ascii_uppercase)}
+
+    def _number_iban(iban):
+        return (iban[4:] + iban[:4]).translate(LETTERS)
+
+    def generate_iban_check_digits(iban):
+        number_iban = _number_iban(iban[:2] + '00' + iban[4:])
+        return '{:0>2}'.format(98 - (int(number_iban) % 97))
+
+    def valid_iban(iban):
+        return int(_number_iban(iban)) % 97 == 1
+
+    unchecked_iban = unchecked_iban.replace(' ', "").upper()
+    return generate_iban_check_digits(unchecked_iban) == unchecked_iban[2:4] and valid_iban(unchecked_iban)
 
 class GSheet:
-    def __init__(self):
-        self.sheet = None
+    def __init__(self, stdBetrag, stdZweck):
+        self.stdbetrag = stdBetrag
+        self.stdzweck = stdZweck
+        self.ssheet = None
         self.data = {}
+        self.emailAdresses = {}
+        self.nr_einzug = 0
+        self.nr_bezahlt = 0
+        self.nr_einzuziehen = 0
+        self.nr_eingezogen = 0
+        self.nr_unverifiziert = 0
+        self.eingez = []
+
+        self.spreadSheetId = ""
+
+        # diese Felder brauchen wir für den Einzug
+        self.ebicsnames = []
+        self.ktoinh = ""
+        self.iban = ""
+        self.betrag = ""
+        self.zweck = ""
+
+        # Felder die wir überprüfen
+        self.zustimmung = ""
+
+        # diese Felder fügen wir hinzu
+        self.zusatzFelder = []
+        self.verifikation = ""
+        self.eingezogen = ""
+        self.zahlungseingang = ""
+
+    def getStatistics(self):
+        return ( self.nr_einzug, self.nr_unverifiziert, self.nr_bezahlt, self.nr_eingezogen, self.nr_einzuziehen)
 
     def getData(self):
         """Calls the Apps Script API.
@@ -42,16 +87,117 @@ class GSheet:
                 pickle.dump(creds, token)
 
         service = build('sheets', 'v4', credentials=creds)
-        self.sheet = service.spreadsheets()
-        sheet_props = self.sheet.get(spreadsheetId=spreadSheetId, fields="sheets.properties").execute()
+        self.ssheet = service.spreadsheets()
+        sheet_props = self.ssheet.get(spreadsheetId=self.spreadSheetId, fields="sheets.properties").execute()
         sheet_names = [ sheet_prop["properties"]["title"] for sheet_prop in sheet_props["sheets"]]
 
         for sname in sheet_names:
-            if not sname.startswith("RFS") and sname != "Email-Verifikation":
+            if not self.validSheetName(sname):
                 continue
-            rows = self.sheet.values().get(spreadsheetId=spreadSheetId, range=sname).execute().get('values', [])
+            rows = self.ssheet.values().get(spreadsheetId=self.spreadSheetId, range=sname).execute().get('values', [])
             self.data[sname] = rows
-        return self.data
+
+    def checkColumns(self):
+        # Prüfen ob im sheet die Zusatzfelder angelegt sind
+        for sheet in self.data.keys():
+            srows = self.data[sheet]
+            headers = srows[0] # ein Pointer nach data, keine Kopie!
+            for h in self.zusatzFelder:
+                if not h in headers:
+                    self.addColumn(sheet, h)
+                    headers.append(h)
+
+    def checkEmailVerif(self):
+        # Prüfen ob die Email-Adresse im sheet Email-Verifikation vorkommt
+        for sheet in self.data.keys():
+            srows = self.data[sheet]
+            headers = srows[0]
+            verifx = headers.index(self.verifikation)
+            emailx = headers.index("E-Mail-Adresse")
+            for i, row in enumerate(srows[1:]):
+                emailaddr = row[emailx]
+                verifyDate = self.emailAdresses.get(emailaddr)
+                if verifyDate is not None:
+                    while len(row) <= verifx:
+                        row.append("")
+                    if row[verifx] == "":
+                        # Datum von Email-Verifikation in Spalte Verifikation übernehmen
+                        self.addValue(sheet, i + 1, verifx, verifyDate)
+                        row[verifx] = verifyDate
+
+    def checkBetrag(self, row):
+        if not self.betrag in row:
+            if self.stdbetrag == "":
+                raise ValueError("Standard-Betrag nicht definiert")
+            row[self.betrag] = self.stdbetrag
+        row[self.betrag] = Decimal(row[self.betrag].replace(',', '.'))  # 3,14 -> 3.14
+        return True
+
+    def checkRow(self, row):
+        # IBAN angegeben?
+        if not self.iban in row.keys() or row[self.iban] == "" or len(row[self.iban]) < 22:
+            return False
+        if not is_iban(row[self.iban]):
+            print ("falsche iban in ", row)
+            return False
+        # Zustimmung erteilt?
+        if not self.zustimmung in row.keys() or row[self.zustimmung] == "":
+            return False
+        self.nr_einzug += 1
+        # Email verifiziert?
+        if not self.zustimmung in row.keys() or row[self.verifikation] == "":
+            self.nr_unverifiziert += 1
+            return False
+        # Schon Zahlungseingang
+        if self.zahlungseingang in row and row[self.zahlungseingang] != "":
+            self.nr_bezahlt += 1
+            return False
+        # Schon eingezogen?
+        if self.eingezogen in row and row[self.eingezogen] != "":
+            self.nr_eingezogen += 1
+            return False
+        self.nr_einzuziehen += 1
+        if not self.checkBetrag(row):
+            return False
+        if not self.checkKtoinh(row):
+            return False
+        if not self.zweck in row:
+            if self.stdzweck == "":
+                raise ValueError("Standard-Verwendungszweck nicht definiert")
+            row[self.zweck] = self.stdzweck
+        return True
+
+    def parseGS(self):
+        vals = []
+        for sheet in self.data.keys():
+            srows = self.data[sheet]
+            headers = srows[0]
+            eingezogenX = headers.index(self.eingezogen)
+            for r, srow in enumerate(srows[1:]):
+                row = {}
+                for c,v in enumerate(srow):
+                    if c < len(headers) and headers[c] != "":
+                        key = headers[c]
+                    else:
+                        while c >= len(headers):
+                            headers.append("")
+                        key = headers[c] = chr(ord('A') + c)
+                    row[key] = v
+                row["Sheet"] = sheet
+                if self.checkRow(row):
+                    # Hier können wir einziehen!
+                    vals.append({x:row[x] for x in self.ebicsnames})
+                    # Merken wo das Eingezogen-Datum gespeichert wird, nachdem ebics.xml geschrieben wurde
+                    self.eingez.append((sheet, r + 1, eingezogenX))
+        return vals
+
+    def getEntries(self):
+        self.getData()
+        self.parseEmailVerif()
+        self.checkColumns()
+        self.checkEmailVerif()
+        entries = self.parseGS()
+        return entries
 
     def addColumn(self, sheetName, colName):
         col = 0;
@@ -64,4 +210,11 @@ class GSheet:
         values = [[val]]
         body = {"values": values}
         range = sheetName + "!" + chr(ord('A') + col) + str(row+1)  # 0,0-> A1, 1,2->C2 2,1->B3
-        result = self.sheet.values().update(spreadsheetId=spreadSheetId, range=range, valueInputOption = "RAW", body = body).execute()
+        result = self.ssheet.values().update(spreadsheetId=self.spreadSheetId, range=range, valueInputOption = "RAW", body = body).execute()
+
+    def fillEingezogen(self):
+        # Spalte "Eingezogen" auf heutiges Datum setzen
+        now = datetime.datetime.now()
+        d = now.strftime("%Y-%m-%d")
+        for t in self.eingez:
+            self.addValue(t[0], t[1], t[2], d)

@@ -8,11 +8,58 @@ from tkinter.messagebox import *
 
 import ebics
 
-
 # not allowed to allow serviceaccount access to spreadsheet!?
 # import gspread
 # from oauth2client.service_account import ServiceAccountCredentials
 
+class CheckBoxes(Frame):
+    def __init__(self, master, gui, labeltext, klasses):
+        super().__init__(master)
+        self.master = master
+        self.gui = gui
+        self.names = list(klasses.keys())
+        self.boxes = []
+        self.values = []
+        self.klasses = klasses
+        self.defaults = []
+        self.label = Label(self, text=labeltext, bd=4, width=15, height=0, relief=RIDGE)
+        self.label.grid(row=0, column=0, sticky="w")
+        for i,s in enumerate(self.names):
+            v = IntVar()
+            box = Checkbutton(self, text=s, variable=v, command=self.setVals)
+            box.grid(row=0, column=i + 1, sticky="w")
+            self.boxes.append(box)
+            self.values.append(v)
+            klass = klasses.get(s)
+            self.defaults.append(klass.getDefaults())
+
+    def setVals(self):
+        # Kein Standard-Betrag/Zweck bei mehrfach-Selektion
+        sum = 0
+        x = 0
+        for i in range(len(self.values)):
+            v = self.values[i].get()
+            sum += v
+            if v == 1:
+                x = i
+        if sum == 1:
+            b,z,m = self.defaults[x]
+            self.gui.betragLE.set(b)
+            self.gui.zweckLE.set(z)
+            self.gui.mandatLE.set(m)
+            self.gui.betragLE.config(state=NORMAL)
+            self.gui.zweckLE.config(state=NORMAL)
+            self.gui.mandatLE.config(state=NORMAL)
+        else:
+            self.gui.betragLE.set("")
+            self.gui.zweckLE.set("")
+            self.gui.mandatLE.set("")
+            self.gui.betragLE.config(state=DISABLED)
+            self.gui.zweckLE.config(state=DISABLED)
+            self.gui.mandatLE.config(state=DISABLED)
+
+    def get(self):
+        return {self.names[i]:self.values[i].get() for i in range(len(self.names))}
 
 class ButtonEntry(Frame):
     def __init__(self, master, buttontext, stringtext, w, cmd):
@@ -52,6 +99,9 @@ class LabelEntry(Frame):
     def get(self):
         return self.svar.get()
 
+    def config(self, **kwargs):
+        self.entry.config(**kwargs)
+
     def set(self, s):
         return self.svar.set(s)
 
@@ -80,36 +130,59 @@ class MyApp(Frame):
     def __init__(self, master):
         super().__init__(master)
         w = 50
+        self.sheetsBE = CheckBoxes(master, self, "Sheets", ebics.getKlasses())
         self.templateBE = ButtonEntry(master, "Template-Datei", ebics.templateFileDefault, w, self.templFileSetter)
         self.outputLE = LabelEntry(master, "Ausgabedatei", "ebics.xml", w)
-        self.betragLE = LabelEntry(master, "Betrag", "100,00", w)
-        self.zweckLE = LabelEntry(master, "Zweck", "ADFC Fahrradkurs", w)
-        self.mandatLE = LabelEntry(master, "Mandat", "ADFC-M-RFS-2018", w)
-        self.startBtn = Button(master, text="Start", bd=4, bg="red", width=15, command=self.starten)
+        self.betragLE = LabelEntry(master, "Betrag", "", w)
+        self.betragLE.config(state=DISABLED)
+        self.zweckLE = LabelEntry(master, "Zweck", "", w)
+        self.zweckLE.config(state=DISABLED)
+        self.mandatLE = LabelEntry(master, "Mandat", "", w)
+        self.mandatLE.config(state=DISABLED)
+        self.checkBtn = Button(master, text="Prüfen", bd=4, bg="red", width=15, command=self.check)
+        self.startBtn = Button(master, text="EBICS", bd=4, bg="red", width=15, command=self.starten)
+
         for x in range(1):
             Grid.columnconfigure(master, x, weight=1)
         for y in range(8):
             Grid.rowconfigure(master, y, weight=1)
 
-        self.templateBE.grid(row=0, column=0, sticky="we")
-        self.outputLE.grid(row=1, column=0, sticky="we")
-        self.betragLE.grid(row=2, column=0, sticky="we")
-        self.zweckLE.grid(row=3, column=0, sticky="we")
-        self.mandatLE.grid(row=4, column=0, sticky="we")
-        self.startBtn.grid(row=5, column=0, sticky="w")
+        self.sheetsBE.grid(row=0, column=0, sticky="we")
+        self.templateBE.grid(row=1, column=0, sticky="we")
+        self.outputLE.grid(row=2, column=0, sticky="we")
+        self.betragLE.grid(row=3, column=0, sticky="we")
+        self.zweckLE.grid(row=4, column=0, sticky="we")
+        self.mandatLE.grid(row=5, column=0, sticky="we")
+        self.checkBtn.grid(row=6, column=0, sticky="w")
+        self.startBtn.grid(row=7, column=0, sticky="w")
 
     def templFileSetter(self):
         x = askopenfilename(title="Template Datei auswählen", defaultextension=".xml", filetypes=[("XML", ".xml")])
         self.templateBE.set(x)
 
+    def check(self):
+        eb = ebics.Ebics(
+                   self.sheetsBE.get(),
+                   self.outputLE.get(),
+                   self.betragLE.get(),
+                   self.zweckLE.get(),
+                   self.mandatLE.get(),
+                   self.templateBE.get())
+        try:
+            eb.check()
+            stats = eb.getStatistics()
+            msg = f"Anzahl Abbuchungsaufträge: {stats[0]}\nUnverifizierte Email-Adresse: {stats[1]}\nSchon bezahlt: {stats[2]}\nAbgebucht: {stats[3]}\nNoch abzubuchen: {stats[4]}"
+            showinfo("Ergebnis", msg)
+        except Exception as e:
+            logging.exception("Fehler")
+            showerror("Fehler", str(e))
+
     def starten(self):
         if self.outputLE.get() == "":
             showerror("Fehler", "keine Ausgabedatei")
             return
-        if self.zweckLE.get() == "":
-            showerror("Fehler", "keine Ausgabedatei")
-            return
         eb = ebics.Ebics(
+                   self.sheetsBE.get(),
                    self.outputLE.get(),
                    self.betragLE.get(),
                    self.zweckLE.get(),
@@ -120,21 +193,13 @@ class MyApp(Frame):
             stats = eb.getStatistics()
             msg = f"Anzahl Abbuchungsaufträge: {stats[0]}\nUnverifizierte Email-Adresse: {stats[1]}\nSchon bezahlt: {stats[2]}\nAbgebucht: {stats[3]}\nNoch abzubuchen: {stats[4]}"
             if res is None:
-                showinfo("Nichts", msg)
-                # showinfo("Nichts",
-                #        "Anzahl Abbuchungsaufträge: {}".format(stats[0]),
-                #        "Schon bezahlt: {}".format(stats[1]),
-                #        "Noch abzubuchen: {}".format(stats[2]))
+                showinfo("Nichts gefunden", msg)
             else:
                 showinfo("Erfolg", msg + f"\nAusgabe in Datei {self.outputLE.get()} erzeugt")
         except Exception as e:
             logging.exception("Fehler")
             showerror("Fehler", str(e))
 
-
-#if __name__ == '__main__':
-#    main()
-# locale.setlocale(locale.LC_ALL, "de_DE")
 locale.setlocale(locale.LC_TIME, "German")
 root = Tk()
 app = MyApp(root)
