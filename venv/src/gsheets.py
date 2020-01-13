@@ -4,6 +4,7 @@ import datetime
 import os
 import pickle
 import string
+import sys
 from decimal import Decimal
 
 from google.auth.transport.requests import Request
@@ -28,6 +29,17 @@ def is_iban(unchecked_iban):  # https://gist.github.com/mperlet/f912b1e57d058bd1
 
     unchecked_iban = unchecked_iban.replace(' ', "").upper()
     return generate_iban_check_digits(unchecked_iban) == unchecked_iban[2:4] and valid_iban(unchecked_iban)
+
+#  it seems that with "pyinstaller -F" tkinter (resp. TK) does not find data files relative to the MEIPASS dir
+def pyinst(path):
+    path = path.strip()
+    if os.path.exists(path):
+        return path
+    if hasattr(sys, "_MEIPASS"):  # i.e. if running as exe produced by pyinstaller
+        pypath = sys._MEIPASS + "/" + path
+        if os.path.exists(pypath):
+            return pypath
+    return path
 
 class GSheet:
     def __init__(self, stdBetrag, stdZweck):
@@ -80,8 +92,8 @@ class GSheet:
                 creds.refresh(Request())
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    'credentials.json', SCOPES)
-                creds = flow.run_local_server(port=0)
+                    pyinst('credentials.json'), SCOPES)
+                creds = flow.run_local_server(port=53876)
             # Save the credentials for the next run
             with open('token.pickle', 'wb') as token:
                 pickle.dump(creds, token)
