@@ -1,9 +1,10 @@
 import gsheets
+from decimal import Decimal
 
 class GSheetRFSF(gsheets.GSheet):
     def __init__(self, stdBetrag, stdZweck):
         super().__init__(stdBetrag, stdZweck)
-        self.spreadSheetId = "1xRwSYtnmB4Y3_2f8ZPHxLuzMy7WuuZIW8jOY0nsIzN8"  # RFS_0AXX Backend
+        self.spreadSheetId = "19w4WEvKSZBGgEkVeYNkPQDNGOXsQDhJcZ-TQkOgy4ac"  # RFS_0FXX Backend
 
         # diese Felder brauchen wir für den Einzug
         self.ebicsnames = ebicsnames = ["Lastschrift: Name des Kontoinhabers", "Lastschrift: IBAN-Kontonummer", "Betrag", "Zweck"]
@@ -13,11 +14,12 @@ class GSheetRFSF(gsheets.GSheet):
         self.zweck = ebicsnames[3]
 
         # Felder die wir überprüfen
-        self.formnames = formnames = ["Vorname", "Name", "Zustimmung zur SEPA-Lastschrift", "Bestätigung"]
+        self.formnames = formnames = ["Vorname", "Name", "ADFC-Mitglied?", "Zustimmung zur SEPA-Lastschrift", "Bestätigung"]
         self.vorname = formnames[0]
         self.name = formnames[1]
-        self.zustimmung = formnames[2]
-        self.bestätigung = formnames[3]  # Bestätigung der Teilnahmebedingungen
+        self.mitglied = formnames[2]
+        self.zustimmung = formnames[3]
+        self.bestätigung = formnames[4]  # Bestätigung der Teilnahmebedingungen
 
         # diese Felder fügen wir hinzu
         self.zusatzFelder = zusatzFelder = ["Verifikation", "Anmeldebestätigung", "Eingezogen", "Zahlungseingang", "Kommentar"]
@@ -29,7 +31,7 @@ class GSheetRFSF(gsheets.GSheet):
 
     @classmethod
     def getDefaults(self):
-        return ("99", "ADFC Radfahrschule", "ADFC-M-RFS-2020")
+        return ("12/24", "ADFC Radfahrschule", "ADFC-M-RFS-2020")
 
     def validSheetName(self, sname):
         return sname.startswith("RFS") or sname == "Email-Verifikation"
@@ -38,6 +40,13 @@ class GSheetRFSF(gsheets.GSheet):
         inh = row[self.ktoinh]
         if len(inh) < 5 or inh.startswith("dto") or inh.startswith("ditto"):
             row[self.ktoinh] = row[self.vorname] + " " + row[self.name]
+        return True
+
+    def checkBetrag(self, row):
+        mitglied = row[self.mitglied] == "Ja"
+        if not self.betrag in row:
+            row[self.betrag] = "12" if mitglied else "24"
+        row[self.betrag] = Decimal(row[self.betrag].replace(',', '.'))  # 3,14 -> 3.14
         return True
 
     def parseEmailVerif(self):

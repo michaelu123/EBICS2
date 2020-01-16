@@ -147,18 +147,20 @@ class GSheet:
 
     def checkRow(self, row):
         # IBAN angegeben?
-        if not self.iban in row.keys() or row[self.iban] == "" or len(row[self.iban]) < 22:
+        if not self.iban in row.keys() or row[self.iban] == "":
             return False
         if not is_iban(row[self.iban]):
             print ("falsche iban in ", row)
             return False
         # Zustimmung erteilt?
         if not self.zustimmung in row.keys() or row[self.zustimmung] == "":
+            print ("keine Zustimmung in ", row)
             return False
         self.nr_einzug += 1
         # Email verifiziert?
-        if not self.zustimmung in row.keys() or row[self.verifikation] == "":
+        if not self.verifikation in row.keys() or row[self.verifikation] == "":
             self.nr_unverifiziert += 1
+            print ("Emailadresse nicht verifiziert in ", row)
             return False
         # Schon Zahlungseingang
         if self.zahlungseingang in row and row[self.zahlungseingang] != "":
