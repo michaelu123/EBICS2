@@ -14,7 +14,7 @@ class GSheetRFSF(gsheets.GSheet):
         self.zweck = ebicsnames[3]
 
         # Felder die wir überprüfen
-        self.formnames = formnames = ["Vorname", "Name", "ADFC-Mitglied?", "Zustimmung zur SEPA-Lastschrift", "Bestätigung"]
+        self.formnames = formnames = ["Vorname", "Name", "ADFC-Mitgliedsnummer falls Mitglied", "Zustimmung zur SEPA-Lastschrift", "Bestätigung"]
         self.vorname = formnames[0]
         self.name = formnames[1]
         self.mitglied = formnames[2]
@@ -43,7 +43,7 @@ class GSheetRFSF(gsheets.GSheet):
         return True
 
     def checkBetrag(self, row):
-        mitglied = row[self.mitglied] == "Ja"
+        mitglied = row[self.mitglied] != ""
         if not self.betrag in row:
             row[self.betrag] = "12" if mitglied else "24"
         row[self.betrag] = Decimal(row[self.betrag].replace(',', '.'))  # 3,14 -> 3.14
