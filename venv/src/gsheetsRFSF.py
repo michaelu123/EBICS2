@@ -5,7 +5,8 @@ class GSheetRFSF(gsheets.GSheet):
     def __init__(self, stdBetrag, stdZweck):
         super().__init__(stdBetrag, stdZweck)
         self.spreadSheetId = "19w4WEvKSZBGgEkVeYNkPQDNGOXsQDhJcZ-TQkOgy4ac"  # RFS_0FXX Backend
-
+        self.spreadSheetName = "RFS_0FXX Backend" \
+                               ""
         # diese Felder brauchen wir für den Einzug
         self.ebicsnames = ebicsnames = ["Lastschrift: Name des Kontoinhabers", "Lastschrift: IBAN-Kontonummer", "Betrag", "Zweck"]
         self.ktoinh = ebicsnames[0]

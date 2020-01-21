@@ -4,6 +4,7 @@ class GSheetRFSA(gsheets.GSheet):
     def __init__(self, stdBetrag, stdZweck):
         super().__init__(stdBetrag, stdZweck)
         self.spreadSheetId = "1xRwSYtnmB4Y3_2f8ZPHxLuzMy7WuuZIW8jOY0nsIzN8"  # RFS_0AXX Backend
+        self.spreadSheetName = "RFS_0AXX Backend" \
 
         # diese Felder brauchen wir für den Einzug
         self.ebicsnames = ebicsnames = ["Lastschrift: Name des Kontoinhabers", "Lastschrift: IBAN-Kontonummer", "Betrag", "Zweck"]
@@ -50,6 +51,8 @@ class GSheetRFSA(gsheets.GSheet):
                 headers[2] != "Mit dieser Email-Adresse (bitte nicht ändern!) :":
             print("Arbeitsblatt Email-Verifikation hat falsche Header-Zeile", headers)
         for row in emailVerifSheet[1:]:
+            if len(row) != 3:
+                continue
             if row[1] == "Ja":
                 self.emailAdresses[row[2]] = row[0]
 

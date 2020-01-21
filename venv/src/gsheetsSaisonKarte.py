@@ -3,7 +3,8 @@ import gsheets
 class GSheetSK(gsheets.GSheet):
     def __init__(self, stdBetrag, stdZweck):
         super().__init__("22", "Saisonkarte 2020")
-        self.spreadSheetId = "1oqQGunHI9mln90pyThnFPjs3T4EUwtRwOCoV2Awg3wU"  # Saisonkarte-Bestellungen
+        self.spreadSheetId = "1oqQGunHI9mln90pyThnFPjs3T4EUwtRwOCoV2Awg3wU"  # Saisonkarten-Bestellungen
+        self.spreadSheetName = "Saisonkarten-Bestellungen"
 
         self.ebicsnames = ebicsnames = ["Name des Kontoinhabers (kann leer bleiben falls gleich Mitgliedsname)", "IBAN-Kontonummer", "Betrag", "Zweck" ]
         self.ktoinh = ebicsnames[0]

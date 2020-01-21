@@ -34,7 +34,6 @@ class CheckBoxes(Frame):
             self.defaults.append(klass.getDefaults())
 
     def setVals(self):
-        # Kein Standard-Betrag/Zweck bei mehrfach-Selektion
         sum = 0
         x = 0
         for i in range(len(self.values)):
@@ -51,21 +50,10 @@ class CheckBoxes(Frame):
             self.gui.zweckLE.config(state=NORMAL)
             self.gui.mandatLE.config(state=NORMAL)
         else:
-            bl = []
-            zl = []
-            ml=[]
-            for i in range(len(self.values)):
-                v = self.values[i].get()
-                if v == 1:
-                    b, z, m = self.defaults[i]
-                else:
-                    b = z = m = ""
-                bl.append(b)
-                zl.append(z)
-                ml.append(m)
-            self.gui.betragLE.set(",".join(bl))
-            self.gui.zweckLE.set(",".join(zl))
-            self.gui.mandatLE.set(",".join(ml))
+            # Kein Standard-Betrag/Zweck bei mehrfach-Selektion
+            self.gui.betragLE.set("")
+            self.gui.zweckLE.set("")
+            self.gui.mandatLE.set("")
             self.gui.betragLE.config(state=DISABLED)
             self.gui.zweckLE.config(state=DISABLED)
             self.gui.mandatLE.config(state=DISABLED)

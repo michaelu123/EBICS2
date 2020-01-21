@@ -5,6 +5,7 @@ import os
 import pickle
 import string
 import sys
+import logging
 from decimal import Decimal
 
 from google.auth.transport.requests import Request
@@ -56,6 +57,7 @@ class GSheet:
         self.eingez = []
 
         self.spreadSheetId = ""
+        self.spreadSheetName = ""
 
         # diese Felder brauchen wir für den Einzug
         self.ebicsnames = []
@@ -106,8 +108,13 @@ class GSheet:
         for sname in sheet_names:
             if not self.validSheetName(sname):
                 continue
-            rows = self.ssheet.values().get(spreadsheetId=self.spreadSheetId, range=sname).execute().get('values', [])
-            self.data[sname] = rows
+            try:
+                rows = self.ssheet.values().get(spreadsheetId=self.spreadSheetId, range=sname).execute().get('values', [])
+                self.data[sname] = rows
+            except Exception as e:
+                logging.exception("Kann Arbeitsblatt " + self.spreadSheetName + "/" + sname + " nicht laden")
+                raise(e)
+
 
     def checkColumns(self):
         # Prüfen ob im sheet die Zusatzfelder angelegt sind
