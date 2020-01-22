@@ -2,11 +2,15 @@ import locale
 import os
 import os.path
 import logging
+import getpass
+from Crypto.Cipher import AES
+from Crypto.Hash import SHA256
 from tkinter import *
 from tkinter.filedialog import askopenfilenames, askopenfilename
 from tkinter.messagebox import *
 
 import ebics
+from gsheets import pyinst
 
 # not allowed to allow serviceaccount access to spreadsheet!?
 # import gspread
@@ -200,8 +204,51 @@ class MyApp(Frame):
             logging.exception("Fehler")
             showerror("Fehler", str(e))
 
-locale.setlocale(locale.LC_TIME, "German")
-root = Tk()
-app = MyApp(root)
-app.master.title("ADFC Lastschrift")
-app.mainloop()
+def cred_decrypt():
+    if os.path.exists("credentials.json"):
+        return True
+    if os.path.exists("password.txt"):
+        with open("password.txt", "r") as p:
+            pwd = p.read().strip()
+    else:
+        pwd = getpass.getpass("Passwort: ");
+    sha = SHA256.new()
+    sha.update(pwd.encode('utf-8'))
+    key = sha.digest()
+    chiffre = AES.new(key, AES.MODE_CFB, "1111111122222222".encode('utf-8'))
+    with open(pyinst("credentials.json.encr"), "rb") as inp:
+        b = inp.read()
+        credb = chiffre.decrypt(b)
+        if credb.find(b"client_id") == -1:
+            print("Konnte credentials.json.encr nicht dekodieren. Falsches Passwort?")
+            return False
+        with open("credentials.json", "wb") as out:
+            out.write(credb)
+        with open("password.txt", "w") as p:
+            p.write(pwd)
+    return True
+
+def cred_encrypt():
+    if not os.path.exists("credentials.json.encr"):
+        pwd = getpass.getpass("Passwort: ");
+        with open("password.txt", "w") as p:
+            p.write(pwd)
+        sha = SHA256.new()
+        sha.update(pwd.encode('utf-8'))
+        key = sha.digest()
+        chiffre = AES.new(key, AES.MODE_CFB, "1111111122222222".encode('utf-8'))
+        with open("credentials.json.orig", "rb") as inp, open("credentials.json.encr", "wb") as out:
+            b = inp.read()
+            out.write(chiffre.encrypt(b))
+
+if __name__ == '__main__':
+    if len(sys.argv) == 2 and sys.argv[1] == "e":
+        cred_encrypt()
+        sys.exit(0)
+    locale.setlocale(locale.LC_TIME, "German")
+    if not cred_decrypt():
+        sys.exit(1)
+    root = Tk()
+    app = MyApp(root)
+    app.master.title("ADFC Lastschrift")
+    app.mainloop()

@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import datetime
 import os
 import pickle
@@ -157,17 +155,17 @@ class GSheet:
         if not self.iban in row.keys() or row[self.iban] == "":
             return False
         if not is_iban(row[self.iban]):
-            print ("falsche iban in ", row)
+            print ("falsche iban in", row["Sheet"], "KontoInhaber:", row[self.ktoinh], "IBAN:", row[self.iban])
             return False
         # Zustimmung erteilt?
         if not self.zustimmung in row.keys() or row[self.zustimmung] == "":
-            print ("keine Zustimmung in ", row)
+            print ("keine Zustimmung in", row["Sheet"], "KontoInhaber:", row[self.ktoinh])
             return False
         self.nr_einzug += 1
         # Email verifiziert?
         if not self.verifikation in row.keys() or row[self.verifikation] == "":
             self.nr_unverifiziert += 1
-            print ("Emailadresse nicht verifiziert in ", row)
+            print ("Emailadresse nicht verifiziert in", row["Sheet"], "KontoInhaber:", row[self.ktoinh], "Emailadresse: ", row["E-Mail-Adresse"])
             return False
         # Schon Zahlungseingang
         if self.zahlungseingang in row and row[self.zahlungseingang] != "":
