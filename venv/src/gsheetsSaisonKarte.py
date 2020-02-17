@@ -3,7 +3,8 @@ import gsheets
 class GSheetSK(gsheets.GSheet):
     def __init__(self, stdBetrag, stdZweck):
         super().__init__("22", "Saisonkarte 2020")
-        self.spreadSheetId = "1oqQGunHI9mln90pyThnFPjs3T4EUwtRwOCoV2Awg3wU"  # Saisonkarten-Bestellungen
+        self.spreadSheetId = "1IsG9HpZlDU97Sf82LG-XkTPY1stI_xONH_pDP3x72BU"  # Saisonkarten-Bestellungen
+        # Mit dem aktuellen credentials.json brauchen wir dafür eine externe Linkfreigabe für adfc-muc zum Bearbeiten
         self.spreadSheetName = "Saisonkarten-Bestellungen"
 
         self.ebicsnames = ebicsnames = ["Name des Kontoinhabers (kann leer bleiben falls gleich Mitgliedsname)", "IBAN-Kontonummer", "Betrag", "Zweck" ]
@@ -28,7 +29,7 @@ class GSheetSK(gsheets.GSheet):
 
     @classmethod
     def getDefaults(self):
-        return ("22", "ADFC Saisonkarte", "ADFC_M_SK_2020")
+        return ("22", "ADFC Saisonkarte", "ADFC-M-SK-2020")
 
     def validSheetName(self, sname):
         return sname == "Bestellungen" or sname == "Email-Verifikation"
@@ -48,6 +49,8 @@ class GSheetSK(gsheets.GSheet):
                 headers[2] != "Mit dieser Email-Adresse (bitte nicht ändern!) :":
             print("Arbeitsblatt Email-Verifikation hat falsche Header-Zeile", headers)
         for row in emailVerifSheet[1:]:
+            if len(row) != 3:
+                continue
             if row[1] == "Ja":
                 self.emailAdresses[row[2]] = row[0]
 

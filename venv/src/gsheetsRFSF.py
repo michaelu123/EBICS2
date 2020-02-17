@@ -60,6 +60,8 @@ class GSheetRFSF(gsheets.GSheet):
                 headers[2] != "Mit dieser Email-Adresse (bitte nicht ändern!) :":
             print("Arbeitsblatt Email-Verifikation hat falsche Header-Zeile", headers)
         for row in emailVerifSheet[1:]:
+            if len(row) != 3:
+                continue
             if row[1] == "Ja":
                 self.emailAdresses[row[2]] = row[0]
 
