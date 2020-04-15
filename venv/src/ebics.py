@@ -248,6 +248,7 @@ class Ebics:
         # Spalte "Eingezogen" auf heutiges Datum setzen
         for gsheet in self.gsheets:
             gsheet.fillEingezogen()
+        return "OK"
 
     def getStatistics(self):
         nr_einzug = nr_unverifiziert = nr_bezahlt = nr_eingezogen = nr_einzuziehen = 0

@@ -132,6 +132,8 @@ class GSheet:
             verifx = headers.index(self.verifikation)
             emailx = headers.index("E-Mail-Adresse")
             for i, row in enumerate(srows[1:]):
+                if len(row) == 0:
+                    continue
                 emailaddr = row[emailx]
                 verifyDate = self.emailAdresses.get(emailaddr)
                 if verifyDate is not None:
@@ -154,6 +156,7 @@ class GSheet:
         # IBAN angegeben?
         if not self.iban in row.keys() or row[self.iban] == "":
             return False
+        row[self.iban] = row[self.iban].upper()
         if not is_iban(row[self.iban]):
             print ("falsche iban in", row["Sheet"], "KontoInhaber:", row[self.ktoinh], "IBAN:", row[self.iban])
             return False
@@ -193,6 +196,8 @@ class GSheet:
             headers = srows[0]
             eingezogenX = headers.index(self.eingezogen)
             for r, srow in enumerate(srows[1:]):
+                if len(srow) == 0:
+                    continue
                 row = {}
                 for c,v in enumerate(srow):
                     if c < len(headers) and headers[c] != "":
