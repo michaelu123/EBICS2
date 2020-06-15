@@ -4,9 +4,8 @@ from decimal import Decimal
 class GSheetRFSF(gsheets.GSheet):
     def __init__(self, stdBetrag, stdZweck):
         super().__init__(stdBetrag, stdZweck)
-        self.spreadSheetId = "19w4WEvKSZBGgEkVeYNkPQDNGOXsQDhJcZ-TQkOgy4ac"  # RFS_0FXX Backend
-        self.spreadSheetName = "RFS_0FXX Backend" \
-                               ""
+        self.spreadSheetId = "1Bgt3Yemyou0s-usgoe-O9K3afdNQhYce0opoE1EiWWY"
+        self.spreadSheetName = "RFS_0FXX Backend 2/2020"
         # diese Felder brauchen wir für den Einzug
         self.ebicsnames = ebicsnames = ["Lastschrift: Name des Kontoinhabers", "Lastschrift: IBAN-Kontonummer", "Betrag", "Zweck"]
         self.ktoinh = ebicsnames[0]
@@ -32,7 +31,7 @@ class GSheetRFSF(gsheets.GSheet):
 
     @classmethod
     def getDefaults(self):
-        return ("12/24", "ADFC Radfahrschule", "ADFC-M-RFS-2020")
+        return ("12/24 oder 16/32", "ADFC Radfahrschule", "ADFC-M-RFS-2020")
 
     def validSheetName(self, sname):
         return sname.startswith("RFS") or sname == "Email-Verifikation"
@@ -46,7 +45,10 @@ class GSheetRFSF(gsheets.GSheet):
     def checkBetrag(self, row):
         mitglied = row[self.mitglied] != ""
         if not self.betrag in row:
-            row[self.betrag] = "12" if mitglied else "24"
+            if row["Sheet"] == "RFS_0F03" or row["Sheet"] == "RFS_0F04":
+                row[self.betrag] = "16" if mitglied else "32"
+            else:
+                row[self.betrag] = "12" if mitglied else "24"
         row[self.betrag] = Decimal(row[self.betrag].replace(',', '.'))  # 3,14 -> 3.14
         return True
 
