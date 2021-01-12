@@ -11,6 +11,7 @@ from tkinter.messagebox import *
 
 import ebics
 from gsheets import pyinst
+# from paypal.paypalhttp.http_client import HttpClient
 
 # not allowed to allow serviceaccount access to spreadsheet!?
 # import gspread
@@ -144,6 +145,7 @@ class MyApp(Frame):
         self.mandatLE = LabelEntry(master, "Mandat", "", w)
         self.mandatLE.config(state=DISABLED)
         self.checkBtn = Button(master, text="Prüfen", bd=4, bg="red", width=15, command=self.check)
+        self.testBtn = Button(master, text="Test", bd=4, bg="red", width=15, command=self.testen)
         self.startBtn = Button(master, text="EBICS", bd=4, bg="red", width=15, command=self.starten)
 
         for x in range(1):
@@ -158,7 +160,8 @@ class MyApp(Frame):
         self.zweckLE.grid(row=4, column=0, sticky="we")
         self.mandatLE.grid(row=5, column=0, sticky="we")
         self.checkBtn.grid(row=6, column=0, sticky="w")
-        self.startBtn.grid(row=7, column=0, sticky="w")
+        self.testBtn.grid(row=7, column=0, sticky="w")
+        self.startBtn.grid(row=8, column=0, sticky="w")
 
     def templFileSetter(self):
         x = askopenfilename(title="Template Datei auswählen", defaultextension=".xml", filetypes=[("XML", ".xml")])
@@ -181,7 +184,13 @@ class MyApp(Frame):
             logging.exception("Fehler")
             showerror("Fehler", str(e))
 
+    def testen(self):
+        self.writeEbics(False)
+
     def starten(self):
+        self.writeEbics(True)
+
+    def writeEbics(self, setEingezogen):
         if self.outputLE.get() == "":
             showerror("Fehler", "keine Ausgabedatei")
             return
@@ -193,7 +202,7 @@ class MyApp(Frame):
                    self.mandatLE.get(),
                    self.templateBE.get())
         try:
-            res = eb.createEbicsXml()
+            res = eb.createEbicsXml(setEingezogen)
             stats = eb.getStatistics()
             msg = f"Anzahl Abbuchungsaufträge: {stats[0]}\nUnverifizierte Email-Adresse: {stats[1]}\nSchon bezahlt: {stats[2]}\nAbgebucht: {stats[3]}\nNoch abzubuchen: {stats[4]}"
             if res is None:

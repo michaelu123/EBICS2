@@ -119,6 +119,10 @@ class GSheet:
         for sheet in self.data.keys():
             srows = self.data[sheet]
             headers = srows[0] # ein Pointer nach data, keine Kopie!
+            try:
+                emailx = headers.index("E-Mail-Adresse")
+            except:
+                continue;
             for h in self.zusatzFelder:
                 if not h in headers:
                     self.addColumn(sheet, h)
@@ -129,8 +133,11 @@ class GSheet:
         for sheet in self.data.keys():
             srows = self.data[sheet]
             headers = srows[0]
-            verifx = headers.index(self.verifikation)
-            emailx = headers.index("E-Mail-Adresse")
+            try:
+                verifx = headers.index(self.verifikation)
+                emailx = headers.index("E-Mail-Adresse")
+            except:
+                continue;
             for i, row in enumerate(srows[1:]):
                 if len(row) == 0:
                     continue
@@ -194,7 +201,10 @@ class GSheet:
         for sheet in self.data.keys():
             srows = self.data[sheet]
             headers = srows[0]
-            eingezogenX = headers.index(self.eingezogen)
+            try:
+                eingezogenX = headers.index(self.eingezogen)
+            except:
+                continue;
             for r, srow in enumerate(srows[1:]):
                 if len(srow) == 0:
                     continue
@@ -233,8 +243,14 @@ class GSheet:
         # row, col are 0 based
         values = [[val]]
         body = {"values": values}
-        range = sheetName + "!" + chr(ord('A') + col) + str(row+1)  # 0,0-> A1, 1,2->C2 2,1->B3
-        result = self.ssheet.values().update(spreadsheetId=self.spreadSheetId, range=range, valueInputOption = "RAW", body = body).execute()
+        col0 = "" if col < 26 else chr(ord('A') + int(col / 26) - 1) # A B ... Z AA AB ... AZ BA BB ... BZ ...
+        col1 = chr(ord('A') + int(col % 26))
+        range = sheetName + "!" + col0 + col1 + str(row+1)  # 0,0-> A1, 1,2->C2 2,1->B3
+        try:
+            result = self.ssheet.values().update(spreadsheetId=self.spreadSheetId, range=range, valueInputOption = "RAW", body = body).execute()
+        except:
+            result = self.ssheet.values().append(spreadsheetId=self.spreadSheetId, range=range, valueInputOption = "RAW", body = body).execute()
+        logging.log(logging.INFO, "result %s", result)
 
     def fillEingezogen(self):
         # Spalte "Eingezogen" auf heutiges Datum setzen

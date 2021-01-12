@@ -1,17 +1,16 @@
 import copy
-import csv
 import datetime
 import os
 import random
-import string
 from decimal import Decimal, getcontext
 from string import digits, ascii_uppercase
 from xml.dom.minidom import *
 
-import gsheets
 import gsheetsRFSA
 import gsheetsRFSF
 import gsheetsSaisonKarte
+import gsheetsTK
+import gsheetsMTT
 
 templateFileDefault = "Default"
 decCtx = getcontext()
@@ -112,7 +111,13 @@ def randomId(length):
     return r1 + ''.join(r2)
 
 
-klasses = {"RFSA": gsheetsRFSA.GSheetRFSA, "RFSF": gsheetsRFSF.GSheetRFSF, "SK": gsheetsSaisonKarte.GSheetSK}
+klasses = {
+    "RFSA": gsheetsRFSA.GSheetRFSA,
+    "RFSF": gsheetsRFSF.GSheetRFSF,
+    "SK": gsheetsSaisonKarte.GSheetSK,
+    "TK": gsheetsTK.GSheetTK,
+    "MTT": gsheetsMTT.GSheetMTT
+}
 def getKlasses():
     return klasses
 
@@ -204,7 +209,7 @@ class Ebics:
             sum = sum + row[self.gsheet.betrag]
         return sum
 
-    def createEbicsXml(self):
+    def createEbicsXml(self, setEingezogen):
         template = xmls
         if self.ebics != None and self.ebics != "" and self.ebics != templateFileDefault:
             with open(self.ebics, "r", encoding="utf-8") as f:
@@ -244,7 +249,8 @@ class Ebics:
         pr = pr[0:36] + b' standalone="yes"' + pr[36:]  # minidom has problems with standalone param
         with open(self.outputFile, "wb") as o:
             o.write(pr)
-
+        if not setEingezogen:
+            return "TESTED OK"
         # Spalte "Eingezogen" auf heutiges Datum setzen
         for gsheet in self.gsheets:
             gsheet.fillEingezogen()
