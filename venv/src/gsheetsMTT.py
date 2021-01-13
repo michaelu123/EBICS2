@@ -82,6 +82,8 @@ class GSheetMTT(gsheets.GSheet):
 
         reisenName = row[self.reisenB]
         reisenRows = self.data["Reisen"]
+        # if rrow has a note, then buchungen should also have a note,
+        # i.e. here we should see no matching rrow with a note
         reisenRows = list(filter(lambda rrow: rrow[self.reisenIndex] == reisenName, reisenRows))
         if (len(reisenRows) != 1):
             msg = "Reise '" + reisenName + "' nicht in Reisen"
@@ -114,6 +116,8 @@ class GSheetMTT(gsheets.GSheet):
             print("Arbeitsblatt Email-Verifikation hat falsche Header-Zeile", headers)
         for row in emailVerifSheet[1:]:
             if len(row) != 3:
+                continue
+            if row[0] == "Notiz":
                 continue
             if row[1] == "Ja":
                 self.emailAdresses[row[2]] = row[0]

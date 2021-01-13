@@ -64,6 +64,8 @@ class GSheetRFSF(gsheets.GSheet):
         for row in emailVerifSheet[1:]:
             if len(row) != 3:
                 continue
+            if row[0] == "Notiz":
+                continue
             if row[1] == "Ja":
                 self.emailAdresses[row[2]] = row[0]
 

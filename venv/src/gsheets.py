@@ -102,12 +102,19 @@ class GSheet:
         self.ssheet = service.spreadsheets()
         sheet_props = self.ssheet.get(spreadsheetId=self.spreadSheetId, fields="sheets.properties").execute()
         sheet_names = [ sheet_prop["properties"]["title"] for sheet_prop in sheet_props["sheets"]]
+        all_notes = self.ssheet.get(spreadsheetId=self.spreadSheetId, fields="sheets.properties,sheets/data/rowData/values/note").execute()
 
-        for sname in sheet_names:
+        for i, sname in enumerate(sheet_names):
             if not self.validSheetName(sname):
                 continue
             try:
                 rows = self.ssheet.values().get(spreadsheetId=self.spreadSheetId, range=sname).execute().get('values', [])
+                rowdata = all_notes["sheets"][i]["data"][0]
+                if "rowData" in rowdata:
+                    rowdata = rowdata["rowData"]
+                    for j in range(len(rowdata)):
+                        if "values" in rowdata[j]:
+                            rows[j][0] = "Notiz"
                 self.data[sname] = rows
             except Exception as e:
                 logging.exception("Kann Arbeitsblatt " + self.spreadSheetName + "/" + sname + " nicht laden")
@@ -140,6 +147,8 @@ class GSheet:
                 continue;
             for i, row in enumerate(srows[1:]):
                 if len(row) == 0:
+                    continue
+                if row[0] == "Notiz":
                     continue
                 emailaddr = row[emailx]
                 verifyDate = self.emailAdresses.get(emailaddr)
@@ -207,6 +216,9 @@ class GSheet:
                 continue;
             for r, srow in enumerate(srows[1:]):
                 if len(srow) == 0:
+                    continue
+                if srow[0] == "Notiz":
+                    print("Mit Notiz in Zeile ", r+2, srow)
                     continue
                 row = {}
                 for c,v in enumerate(srow):
