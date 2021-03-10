@@ -14,45 +14,27 @@ class GSheetSK(gsheets.GSheet):
         self.zweck = ebicsnames[3]
 
         # Felder die wir überprüfen
-        self.formnames = formnames = ["ADFC-Mitgliedsname", "ADFC-Mitgliedsnummer", "Zustimmung zur SEPA-Lastschrift"]
+        self.formnames = formnames = ["ADFC-Mitgliedsname", "ADFC-Mitgliedsnummer", "Zustimmung zur SEPA-Lastschrift", "Verifikation", "Gesendet"]
         self.mitgliedsname = formnames[0]
         self.mitgliedsnummer = formnames[1]
         self.zustimmung = formnames[2]
+        self.verifikation = formnames[3]
+        self.gesendet = formnames[4]  # wird vom Skript der Tabelle ausgefüllt
 
         # diese Felder fügen wir hinzu
-        self.zusatzFelder = zusatzFelder = ["Verifiziert", "Gesendet", "Abgebucht", "Bezahlt", "Kommentar"]
-        self.verifikation = zusatzFelder[0]
-        self.gesendet = zusatzFelder[1]  # wird vom Skript der Tabelle ausgefüllt
-        self.eingezogen = zusatzFelder[2]
-        self.zahlungseingang = zusatzFelder[3] # händisch
-        self.kommentar = zusatzFelder[4]
+        self.zusatzFelder = zusatzFelder = ["Abgebucht", "Bezahlt", "Kommentar"]
+        self.eingezogen = zusatzFelder[0]
+        self.zahlungseingang = zusatzFelder[1] # händisch
+        self.kommentar = zusatzFelder[2]
 
     @classmethod
     def getDefaults(self):
         return ("22", "ADFC Saisonkarte", "ADFC-M-SK-2021")
 
     def validSheetName(self, sname):
-        return sname == "Bestellungen" or sname == "Email-Verifikation"
+        return sname == "Bestellungen"
 
     def checkKtoinh(self, row):
         if row[self.ktoinh] == "":
             row[self.ktoinh] = row[self.mitgliedsname]
         return True
-
-    def parseEmailVerif(self):
-        emailVerifSheet = self.data.pop("Email-Verifikation", None)
-        if emailVerifSheet is None:
-            return
-        headers = emailVerifSheet[0]
-        if headers[0] != "Zeitstempel" or \
-                headers[1] != "Haben Sie gerade eine Saisonkarte bestellt?" or \
-                headers[2] != "Mit dieser Email-Adresse (bitte nicht ändern!) :":
-            print("Arbeitsblatt Email-Verifikation hat falsche Header-Zeile", headers)
-        for row in emailVerifSheet[1:]:
-            if len(row) != 3:
-                continue
-            if row[0] == "Notiz":
-                continue
-            if row[1] == "Ja":
-                self.emailAdresses[row[2]] = row[0]
-

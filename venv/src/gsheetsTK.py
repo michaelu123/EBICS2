@@ -16,28 +16,29 @@ class GSheetTK(gsheets.GSheet):
         self.zweck = ebicsnames[3]
 
         # Felder die wir überprüfen
-        self.formnames = formnames = ["Vorname", "Name", "ADFC-Mitgliedsnummer", "Zustimmung zur SEPA-Lastschrift", "Bestätigung"]
+        self.formnames = formnames = ["Vorname", "Name", "ADFC-Mitgliedsnummer", "Zustimmung zur SEPA-Lastschrift",
+                                      "Bestätigung", "Verifikation", "Anmeldebestätigung"]
         self.vorname = formnames[0]
         self.name = formnames[1]
         self.mitglied = formnames[2]
         self.zustimmung = formnames[3]
         self.bestätigung = formnames[4]  # Bestätigung der Teilnahmebedingungen
+        self.verifikation = formnames[5]
+        self.anmeldebest = formnames[6]  # wird vom Skript Radfahrschule/Anmeldebestätigung senden ausgefüllt
 
         # diese Felder fügen wir hinzu
-        self.zusatzFelder = zusatzFelder = ["Verifikation", "Anmeldebestätigung", "Eingezogen", "Zahlungseingang",
+        self.zusatzFelder = zusatzFelder = ["Eingezogen", "Zahlungseingang",
                                             "Kommentar"]
-        self.verifikation = zusatzFelder[0]
-        self.anmeldebest = zusatzFelder[1]  # wird vom Skript Radfahrschule/Anmeldebestätigung senden ausgefüllt
-        self.eingezogen = zusatzFelder[2]
-        self.zahlungseingang = zusatzFelder[3]  # händisch
-        self.kommentar = zusatzFelder[4]
+        self.eingezogen = zusatzFelder[0]
+        self.zahlungseingang = zusatzFelder[1]  # händisch
+        self.kommentar = zusatzFelder[2]
 
     @classmethod
     def getDefaults(self):
         return ("10/15", "ADFC Technikkurse", "ADFC-M-TK-2021")
 
     def validSheetName(self, sname):
-        return sname.startswith("Buchungen") or sname == "Email-Verifikation"
+        return sname.startswith("Buchungen")
 
     def checkKtoinh(self, row):
         inh = row[self.ktoinh]
@@ -51,20 +52,3 @@ class GSheetTK(gsheets.GSheet):
             row[self.betrag] = "10" if mitglied else "15"
         row[self.betrag] = Decimal(row[self.betrag].replace(',', '.'))  # 3,14 -> 3.14
         return True
-
-    def parseEmailVerif(self):
-        emailVerifSheet = self.data.pop("Email-Verifikation", None)
-        if emailVerifSheet is None:
-            return
-        headers = emailVerifSheet[0]
-        if headers[0] != "Zeitstempel" or \
-                headers[1] != "Haben Sie sich gerade für einen Technikkurs angemeldet?" or \
-                headers[2] != "Mit dieser Email-Adresse (bitte nicht ändern!) :":
-            print("Arbeitsblatt Email-Verifikation hat falsche Header-Zeile", headers)
-        for row in emailVerifSheet[1:]:
-            if len(row) != 3:
-                continue
-            if row[0] == "Notiz":
-                continue
-            if row[1] == "Ja":
-                self.emailAdresses[row[2]] = row[0]

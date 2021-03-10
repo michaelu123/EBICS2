@@ -116,7 +116,7 @@ klasses = {
     "RFSF": gsheetsRFSF.GSheetRFSF,
     "SK": gsheetsSaisonKarte.GSheetSK,
     "TK": gsheetsTK.GSheetTK,
-    "MTT": gsheetsMTT.GSheetMTT
+    # "MTT": gsheetsMTT.GSheetMTT
 }
 def getKlasses():
     return klasses

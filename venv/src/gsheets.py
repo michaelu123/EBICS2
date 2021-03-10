@@ -66,10 +66,10 @@ class GSheet:
 
         # Felder die wir überprüfen
         self.zustimmung = ""
+        self.verifikation = ""
 
         # diese Felder fügen wir hinzu
         self.zusatzFelder = []
-        self.verifikation = ""
         self.eingezogen = ""
         self.zahlungseingang = ""
 
@@ -135,30 +135,6 @@ class GSheet:
                     self.addColumn(sheet, h)
                     headers.append(h)
 
-    def checkEmailVerif(self):
-        # Prüfen ob die Email-Adresse im sheet Email-Verifikation vorkommt
-        for sheet in self.data.keys():
-            srows = self.data[sheet]
-            headers = srows[0]
-            try:
-                verifx = headers.index(self.verifikation)
-                emailx = headers.index("E-Mail-Adresse")
-            except:
-                continue;
-            for i, row in enumerate(srows[1:]):
-                if len(row) == 0:
-                    continue
-                if row[0] == "Notiz":
-                    continue
-                emailaddr = row[emailx]
-                verifyDate = self.emailAdresses.get(emailaddr)
-                if verifyDate is not None:
-                    while len(row) <= verifx:
-                        row.append("")
-                    if row[verifx] == "":
-                        # Datum von Email-Verifikation in Spalte Verifikation übernehmen
-                        self.addValue(sheet, i + 1, verifx, verifyDate)
-                        row[verifx] = verifyDate
 
     def checkBetrag(self, row):
         if not self.betrag in row:
@@ -239,9 +215,7 @@ class GSheet:
 
     def getEntries(self):
         self.getData()
-        self.parseEmailVerif()
         self.checkColumns()
-        self.checkEmailVerif()
         entries = self.parseGS()
         return entries
 

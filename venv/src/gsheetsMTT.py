@@ -23,7 +23,8 @@ class GSheetMTT(gsheets.GSheet):
         self.formnames = formnames = ["Anrede", "Vorname", "Name", "ADFC-Mitgliedsnummer",
                                       "Bei welchen Touren möchten Sie mitfahren?",
                                       "Reisen Sie alleine oder zu zweit?",
-                                      "Zustimmung zur SEPA-Lastschrift", "Bestätigung"]
+                                      "Zustimmung zur SEPA-Lastschrift", "Bestätigung",
+                                      "Verifikation", "Anmeldebestätigung"]
         self.anrede = formnames[0]
         self.vorname = formnames[1]
         self.name = formnames[2]
@@ -32,16 +33,15 @@ class GSheetMTT(gsheets.GSheet):
         self.einzeln = formnames[5]
         self.zustimmung = formnames[6]
         self.bestätigung = formnames[7]  # Bestätigung der Teilnahmebedingungen
+        self.verifikation = formnames[8]
+        self.anmeldebest = formnames[9]  # wird vom Skript Radfahrschule/Anmeldebestätigung senden ausgefüllt
 
         # diese Felder fügen wir hinzu
-        self.zusatzFelder = zusatzFelder = ["Verifikation", "Anmeldebestätigung",
-                                            "Eingezogen", "Zahlungseingang",
+        self.zusatzFelder = zusatzFelder = ["Eingezogen", "Zahlungseingang",
                                             "Kommentar"]
-        self.verifikation = zusatzFelder[0]
-        self.anmeldebest = zusatzFelder[1]  # wird vom Skript Radfahrschule/Anmeldebestätigung senden ausgefüllt
-        self.eingezogen = zusatzFelder[2]
-        self.zahlungseingang = zusatzFelder[3]  # händisch
-        self.kommentar = zusatzFelder[4]
+        self.eingezogen = zusatzFelder[0]
+        self.zahlungseingang = zusatzFelder[1]  # händisch
+        self.kommentar = zusatzFelder[2]
 
         # Reisen
         self.reisenNames = reisennames = ["Reise", "DZ-Preis", "EZ-Preis"]
@@ -58,7 +58,7 @@ class GSheetMTT(gsheets.GSheet):
         return ("je nach Reise", "ADFC Mehrtagestouren", "ADFC-M-MTT-2021")
 
     def validSheetName(self, sname):
-        return sname == "Buchungen" or sname == "Reisen" or sname == "Email-Verifikation"
+        return sname == "Buchungen" or sname == "Reisen"
 
     def checkKtoinh(self, row):
         inh = row[self.ktoinh]
@@ -104,20 +104,3 @@ class GSheetMTT(gsheets.GSheet):
             row[self.betrag] = self.reisenBetrag(row)
         row[self.betrag] = Decimal(row[self.betrag].replace(',', '.'))  # 3,14 -> 3.14
         return True
-
-    def parseEmailVerif(self):
-        emailVerifSheet = self.data.pop("Email-Verifikation", None)
-        if emailVerifSheet is None:
-            return
-        headers = emailVerifSheet[0]
-        if headers[0] != "Zeitstempel" or \
-                headers[1] != "Haben Sie sich gerade für eine Mehrtagestour angemeldet?" or \
-                headers[2] != "Mit dieser Email-Adresse (bitte nicht ändern!) :":
-            print("Arbeitsblatt Email-Verifikation hat falsche Header-Zeile", headers)
-        for row in emailVerifSheet[1:]:
-            if len(row) != 3:
-                continue
-            if row[0] == "Notiz":
-                continue
-            if row[1] == "Ja":
-                self.emailAdresses[row[2]] = row[0]
