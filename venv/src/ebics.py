@@ -10,7 +10,7 @@ import gsheetsRFSA
 import gsheetsRFSF
 import gsheetsSaisonKarte
 import gsheetsTK
-import gsheetsMTT
+import gsheetsMTT2
 
 templateFileDefault = "Default"
 decCtx = getcontext()
@@ -116,7 +116,8 @@ klasses = {
     "RFSF": gsheetsRFSF.GSheetRFSF,
     "SK": gsheetsSaisonKarte.GSheetSK,
     "TK": gsheetsTK.GSheetTK,
-    # "MTT": gsheetsMTT.GSheetMTT
+    "MTT": gsheetsMTT2.GSheetMTT2, # edoobox
+    # "MTT": gsheetsMTT.GSheetMTT # Google Forms/Sheets
 }
 def getKlasses():
     return klasses

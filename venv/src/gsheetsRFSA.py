@@ -31,7 +31,7 @@ class GSheetRFSA(gsheets.GSheet):
 
     @classmethod
     def getDefaults(self):
-        return ("100", "ADFC Radfahrschule", "ADFC-M-RFS-2021")
+        return ("100", "ADFC Radfahrschule", "ADFC-M-RFS-2022")
 
     def validSheetName(self, sname):
         return sname == "Buchungen"

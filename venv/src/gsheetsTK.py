@@ -5,7 +5,7 @@ from decimal import Decimal
 class GSheetTK(gsheets.GSheet):
     def __init__(self, stdBetrag, stdZweck):
         super().__init__("", stdZweck)
-        self.spreadSheetId = "1jm8GL-Xblyh7vORDvWljbBgz0hbFXArrWpl96WCZVGU"  # Backend-Technikkurse
+        self.spreadSheetId = "1r4WEgWskyJrHNRgWLOZ2n7pgho-8S6kSo7cm1po1pt4"  # Backend-Technikkurse
         self.spreadSheetName = "Backend-Technikkurse"
 
         # diese Felder brauchen wir für den Einzug
@@ -35,7 +35,7 @@ class GSheetTK(gsheets.GSheet):
 
     @classmethod
     def getDefaults(self):
-        return ("10/15", "ADFC Technikkurse", "ADFC-M-TK-2021")
+        return ("10/15", "ADFC Technikkurse", "ADFC-M-TK-2022")
 
     def validSheetName(self, sname):
         return sname.startswith("Buchungen")

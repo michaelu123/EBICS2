@@ -55,7 +55,7 @@ class GSheetMTT(gsheets.GSheet):
 
     @classmethod
     def getDefaults(self):
-        return ("je nach Reise", "ADFC Mehrtagestouren", "ADFC-M-MTT-2021")
+        return ("je nach Reise", "ADFC Mehrtagestouren", "ADFC-M-MTT-2022")
 
     def validSheetName(self, sname):
         return sname == "Buchungen" or sname == "Reisen"
