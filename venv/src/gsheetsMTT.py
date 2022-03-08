@@ -13,11 +13,12 @@ class GSheetMTT(gsheets.GSheet):
         # Buchungen
         # diese Felder brauchen wir für den Einzug
         self.ebicsnames = ebicsnames = ["Name des Kontoinhabers", "IBAN-Kontonummer",
-                                        "Betrag", "Zweck"]
+                                        "Betrag", "Zweck", "Zeitstempel"]
         self.ktoinh = ebicsnames[0]
         self.iban = ebicsnames[1]
         self.betrag = ebicsnames[2]
         self.zweck = ebicsnames[3]
+        self.datum = ebicsnames[4]
 
         # Felder die wir überprüfen
         self.formnames = formnames = ["Anrede", "Vorname", "Name", "ADFC-Mitgliedsnummer",

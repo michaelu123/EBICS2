@@ -4,13 +4,14 @@ import os
 import random
 from decimal import Decimal, getcontext
 from string import digits, ascii_uppercase
+from tkinter.messagebox import *
 from xml.dom.minidom import *
 
+import gsheetsMTT2
 import gsheetsRFSA
 import gsheetsRFSF
 import gsheetsSaisonKarte
 import gsheetsTK
-import gsheetsMTT2
 
 templateFileDefault = "Default"
 decCtx = getcontext()
@@ -110,6 +111,29 @@ def randomId(length):
     r2 = [random.choice(charset) for _ in range(length - 1)]  # then any mixture of capitalletters and numbers
     return r1 + ''.join(r2)
 
+latin = set()
+for c in "0123456789":
+    latin.add(c)
+for c in "abcdefghijklmnopqrstuvwxyz":
+    latin.add(c)
+for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+    latin.add(c)
+for c in "':?,-(+.)/ ":
+    latin.add(c)
+for c in "ÄÖÜäöüß&*$%":
+    latin.add(c)
+
+def isLatin(s):
+    for c in s:
+        if not c in latin:
+            return False
+    return True
+
+def convertToIsoDate(ts):  # 06.03.2022 17:28:38 -> 2022-03-06
+    if (ts[2] == '.' and ts[5] == '.'):
+        return ts[6:10] + "-" + ts[3:5] + "-" + ts[0:2]
+    return "2022-01-01"  # ??
+
 
 klasses = {
     "RFSA": gsheetsRFSA.GSheetRFSA,
@@ -161,20 +185,42 @@ class Ebics:
 
     def fillin2(self, tuple, entries):
         pmtInf, drctDbtTxInf, nl1, nl2 = tuple
+        res = []
         for entry in entries:
+            ktoInh = entry[self.gsheet.ktoinh]
+            if (not isLatin(ktoInh)):
+                showerror("Zeichensatz", "Kontoinhaber " + ktoInh + " mit ungültigen Zeichen")
+                self.gsheet.nr_einzuziehen -= 1
+                continue
+            zweck = str(entry[self.gsheet.zweck])
+            if (not isLatin(zweck)):
+                showerror("Zeichensatz", "Zweck " + zweck + " mit ungültigen Zeichen")
+                self.gsheet.nr_einzuziehen -= 1
+                continue
+            res.append(entry)
             newtx = copy.deepcopy(drctDbtTxInf)
             nm = newtx.getElementsByTagName("Nm")
-            nm[0].childNodes[0] = self.xmlt.createTextNode(entry[self.gsheet.ktoinh])
+            nm[0].childNodes[0] = self.xmlt.createTextNode(ktoInh)
             ibn = newtx.getElementsByTagName("IBAN")
             ibn[0].childNodes[0] = self.xmlt.createTextNode(entry[self.gsheet.iban])
             amt = newtx.getElementsByTagName("InstdAmt")
             amt[0].childNodes[0] = self.xmlt.createTextNode(str(entry[self.gsheet.betrag]))
             ustrd = newtx.getElementsByTagName("Ustrd")
-            ustrd[0].childNodes[0] = self.xmlt.createTextNode(str(entry[self.gsheet.zweck]))
+            ustrd[0].childNodes[0] = self.xmlt.createTextNode(str(zweck))
             mndtId = newtx.getElementsByTagName("MndtId")
-            mndtId[0].childNodes[0] = self.xmlt.createTextNode(self.mandat)
+            mandat = entry.get("mandat")
+            if mandat is None:
+                mandat = self.mandat
+            mndtId[0].childNodes[0] = self.xmlt.createTextNode(mandat)
+
+            dtOfSgntr = newtx.getElementsByTagName("DtOfSgntr")
+            timestamp = entry.get(self.gsheet.datum)
+            timestamp = convertToIsoDate(timestamp)
+            dtOfSgntr[0].childNodes[0] = self.xmlt.createTextNode(timestamp)
+
             pmtInf.childNodes.append(newtx)
             pmtInf.childNodes.append(copy.copy(nl1))
+        return res
 
     def fillin3(self, tuple):
         pmtInf, drctDbtTxInf, nl1, nl2 = tuple
@@ -236,7 +282,7 @@ class Ebics:
             self.gsheet = klass(stdBetrag, stdZweck)
             self.gsheets.append(self.gsheet)
             entries = self.gsheet.getEntries()
-            self.fillin2(tuple, entries)
+            entries = self.fillin2(tuple, entries)
             entryCnt += len(entries)
             summe += self.addBetraege(entries)
             self.mandat = ""

@@ -10,11 +10,13 @@ class GSheetRFSF(gsheets.GSheet):
         self.spreadSheetName = "RFS_1F Backend"
         self.kursFrage = "Welchen Kurs möchten Sie belegen?"
         # diese Felder brauchen wir für den Einzug
-        self.ebicsnames = ebicsnames = ["Lastschrift: Name des Kontoinhabers", "Lastschrift: IBAN-Kontonummer", "Betrag", "Zweck"]
+        self.ebicsnames = ebicsnames = ["Lastschrift: Name des Kontoinhabers", "Lastschrift: IBAN-Kontonummer",
+                                        "Betrag", "Zweck", "Zeitstempel"]
         self.ktoinh = ebicsnames[0]
         self.iban = ebicsnames[1]
         self.betrag = ebicsnames[2]
         self.zweck = ebicsnames[3]
+        self.datum = ebicsnames[5]
 
         # Felder die wir überprüfen
         self.formnames = formnames = ["Vorname", "Name", "ADFC-Mitgliedsnummer falls Mitglied",

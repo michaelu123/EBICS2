@@ -7,11 +7,13 @@ class GSheetSK(gsheets.GSheet):
         # Mit dem aktuellen credentials.json brauchen wir dafür eine externe Linkfreigabe für adfc-muc zum Bearbeiten
         self.spreadSheetName = "Saisonkarten-Bestellungen"
 
-        self.ebicsnames = ebicsnames = ["Name des Kontoinhabers (kann leer bleiben falls gleich Mitgliedsname)", "IBAN-Kontonummer", "Betrag", "Zweck" ]
+        self.ebicsnames = ebicsnames = ["Name des Kontoinhabers (kann leer bleiben falls gleich Mitgliedsname)",
+                                        "IBAN-Kontonummer", "Betrag", "Zweck", "Zeitstempel" ]
         self.ktoinh = ebicsnames[0]
         self.iban = ebicsnames[1]
         self.betrag = ebicsnames[2]
         self.zweck = ebicsnames[3]
+        self.datum = ebicsnames[4]
 
         # Felder die wir überprüfen
         self.formnames = formnames = ["ADFC-Mitgliedsname", "ADFC-Mitgliedsnummer", "Zustimmung zur SEPA-Lastschrift", "Verifikation", "Gesendet"]

@@ -9,11 +9,12 @@ class GSheetTK(gsheets.GSheet):
         self.spreadSheetName = "Backend-Technikkurse"
 
         # diese Felder brauchen wir für den Einzug
-        self.ebicsnames = ebicsnames = ["Name des Kontoinhabers", "IBAN-Kontonummer", "Betrag", "Zweck"]
+        self.ebicsnames = ebicsnames = ["Name des Kontoinhabers", "IBAN-Kontonummer", "Betrag", "Zweck", "Zeitstempel"]
         self.ktoinh = ebicsnames[0]
         self.iban = ebicsnames[1]
         self.betrag = ebicsnames[2]
         self.zweck = ebicsnames[3]
+        self.datum = ebicsnames[4]
 
         # Felder die wir überprüfen
         self.formnames = formnames = ["Vorname", "Name", "ADFC-Mitgliedsnummer", "Zustimmung zur SEPA-Lastschrift",
