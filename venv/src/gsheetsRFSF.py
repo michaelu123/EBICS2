@@ -16,7 +16,7 @@ class GSheetRFSF(gsheets.GSheet):
         self.iban = ebicsnames[1]
         self.betrag = ebicsnames[2]
         self.zweck = ebicsnames[3]
-        self.datum = ebicsnames[5]
+        self.datum = ebicsnames[4]
 
         # Felder die wir überprüfen
         self.formnames = formnames = ["Vorname", "Name", "ADFC-Mitgliedsnummer falls Mitglied",
